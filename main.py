@@ -271,7 +271,11 @@ db = []
 async def create_upload_file(file: UploadFile = File(...)):
     file.filename = f"{uuid.uuid4()}.jpg"
     contents = await file.read()  # <-- Important!
+    img_in = PIL.Image.open(contents)
 
+    img_in.thumbnail((MAX_IMG_WIDTH, MAX_IMG_HEIGHT), PIL.Image.ANTIALIAS)
+    img_in = np.float32(img_in)
+    print(img_in)
     db.append(contents)
 
     return {"filename": file.filename}
