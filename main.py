@@ -1,5 +1,4 @@
 from turtle import st
-
 from fastapi import FastAPI, UploadFile, File
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +19,8 @@ import IPython.display as display
 import zipfile
 from fastapi.responses import FileResponse
 import functools
+from typing import List
+
 tf.compat.v1.disable_eager_execution()
 
 from fastapi.responses import Response
@@ -45,14 +46,12 @@ app.add_middleware(
 THIS_FILE_DIR = os.path.abspath(os.path.dirname(__file__))
 MODEL_DIR = os.path.join(THIS_FILE_DIR, 'models')
 MODEL_FILENAME = os.path.join(MODEL_DIR, 'tensorflow_inception_graph.pb')
-
 t_input = tf.compat.v1.placeholder(np.float32, name='input')
 
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
-
 
 @app.get("/hello/{name}")
 async def say_hello(name: str):
@@ -71,60 +70,30 @@ async def create_upload_file(file: UploadFile = File(...)):
     image = load_image_into_numpy_array(contents)
 
     arr = np.uint8(np.clip(image / 255.0, 0, 1) * 255)
-
+    showImgInput(arr)
     dbimg.append(arr)
     db.append(contents)
     # print(contents.)
 
     return {"filename": file.filename}
 
-
-
-
 @app.get("/images/")
 async def read_random_file():
-    random_index = randint(0, len(db) - 1)
-    response = Response(content=db[random_index])
+    # random_index = randint(0, len(db) - 1)
+    response = Response(content=db[0])
+
+    # showImg(db[0])
     return response
 
 
-@app.post("/upload")
-def upload(file: UploadFile = File(...)):
-    try:
-        contents = file.file.read()
-        with open(file.filename, 'wb') as f:
-            f.write(contents)
+@app.get("/image/")
+async def inputImage():
+    response = FileResponse("input.png")
+    return response
 
-    except Exception:
-        return {"message": "There was an error uploading the file"}
-    finally:
-        file.file.close()
-
-    return {"message": f"This is file which is came {file.filename}"}
 
 
 # print(img)
-
-
-from typing import List
-
-
-@app.post("/files")
-def uploadss(files: List[UploadFile] = File(...)):
-    for file in files:
-        try:
-            with open(file.filename, 'wb') as f:
-                while contents := file.file.read(1024 * 1024):
-                    f.write(contents)
-        except Exception:
-            return {"message": "There was an error uploading the file(s)"}
-        finally:
-            file.file.close()
-
-    return {"message": f"Successfuly uploaded {[file.filename for file in files]}"}
-
-
-
 
 @functools.lru_cache
 def init_model():
@@ -145,17 +114,13 @@ tf.import_graph_def(graph_def, {'input': t_preprocessed})
 def get_tensor(layer):
     '''Helper for getting layer output tensor'''
     return graph.get_tensor_by_name('%s:0' % layer)
-
 img_noise = np.random.uniform(size=(224, 224, 3)) + 100.0
-
 
 def write_image(dg, arr):
 
     arr = np.uint8(np.clip(arr/255.0, 0, 1)*255)
     dg.image(arr, use_column_width=True)
     return dg
-
-
 def tffunc(*argtypes):
     '''Helper that transforms TF-graph generating function into a regular one.
 
@@ -196,18 +161,26 @@ def calc_grad_tiled(img, t_grad, tile_size=512):
             grad[y:y+sz, x:x+sz] = g
     return np.roll(np.roll(grad, -sx, 1), -sy, 0)
 
-
 ans = None
-
 
 def showImg(img_in):
     arr = np.uint8(np.clip(img_in / 255.0, 0, 1) * 255)
     img = Image.fromarray(arr, 'RGB')
-    img.save('my.png')
+    img.save('output.png')
+    # img.show()
+    return img
+def saveImage(img_in):
+    arr = np.uint8(np.clip(img_in / 255.0, 0, 1) * 255)
+    img = Image.fromarray(arr, 'RGB')
+    img.save('output.png')
+    # img.show()
+    return img
+def showImgInput(img_in):
+    arr = np.uint8(np.clip(img_in / 255.0, 0, 1) * 255)
+    img = Image.fromarray(arr, 'RGB')
+    img.save('input.png')
     img.show()
     return img
-
-
 
 def do_deepdream(
         t_obj, img_in=img_noise, iter_n=10, step=1.5, octave_n=4,
@@ -236,6 +209,9 @@ def do_deepdream(
             g = calc_grad_tiled(img_in, t_grad)
             img_in += g*(step / (np.abs(g).mean()+1e-7))
             p += 1
+            # showImg(img_in)
+        saveImage(img_in)
+
     return showImg(img_in)
 
     # print(ans)
@@ -251,45 +227,46 @@ def read_file_from_url(url):
     return urllib.request.urlopen(url).read()
 
 
-MAX_IMG_WIDTH = 600
-MAX_IMG_HEIGHT = 400
-DEFAULT_IMAGE_URL = 'https://i.imgur.com/dOPMzXl.jpg'
+from pydantic import BaseModel
+class outputParams(BaseModel):
+    layers : int
+    channel :int
+    octaves:int
+    iterations:int
 
-file_obj = BytesIO(read_file_from_url(DEFAULT_IMAGE_URL))
+@app.post("/out")
+async def output(params : outputParams):
+    MAX_IMG_WIDTH = 800
+    MAX_IMG_HEIGHT = 600
+    DEFAULT_IMAGE_URL = './/'
 
+    file_obj = 'input.png'
 
-img_in = PIL.Image.open(file_obj)
-img_in.thumbnail((MAX_IMG_WIDTH, MAX_IMG_HEIGHT), PIL.Image.ANTIALIAS)
-img_in = np.float32(img_in)
-output = np.float32(img_in)
-max_value = len(layers) - 1
-layer_num = 20
-layer = layers[layer_num]
+    img_in = PIL.Image.open(file_obj)
+    img_in.thumbnail((MAX_IMG_WIDTH, MAX_IMG_HEIGHT), PIL.Image.ANTIALIAS)
+    img_in = np.float32(img_in)
+    max_value = len(layers) - 1
+    layer_num = params.layers
+    layer = layers[layer_num]
 
-channels = int(get_tensor(layer).get_shape()[-1])
-max_value = channels - 1
-channel = 20
+    channels = int(get_tensor(layer).get_shape()[-1])
+    max_value = channels - 1
+    channel = params.channel
 
-octaves = 6
+    octaves = params.octaves
 
-iterations = 60
-
-@app.get("/out")
-async def output():
+    iterations = params.iterations
     out = do_deepdream(
         get_tensor(layer)[:, :, :, channel], img_in, octave_n=octaves,
         iter_n=iterations)
-    # print(out)
-    #
-    # return  {"message": "Hello World"}
-    # os.read('/my.png')
-    # response = Response(img, mimetype="image/png")
-    response = FileResponse("my.png")
+
+    response = FileResponse("output.png")
     return response
 
-
-
-
+@app.get("/out")
+async def output():
+    response = FileResponse("output.png")
+    return response
 
 
 
@@ -320,5 +297,33 @@ async def output():
 #         data = json.loads(file.file.read())
 #         return {"content": data, "filename": file.filename}
 
+# @app.post("/upload")
+# def upload(file: UploadFile = File(...)):
+#     try:
+#         contents = file.file.read()
+#         with open(file.filename, 'wb') as f:
+#             f.write(contents)
+#
+#     except Exception:
+#         return {"message": "There was an error uploading the file"}
+#     finally:
+#         file.file.close()
+#
+#     return {"message": f"This is file which is came {file.filename}"}
 
 
+
+#
+# @app.post("/files")
+# def uploadss(files: List[UploadFile] = File(...)):
+#     for file in files:
+#         try:
+#             with open(file.filename, 'wb') as f:
+#                 while contents := file.file.read(1024 * 1024):
+#                     f.write(contents)
+#         except Exception:
+#             return {"message": "There was an error uploading the file(s)"}
+#         finally:
+#             file.file.close()
+#
+#     return {"message": f"Successfuly uploaded {[file.filename for file in files]}"}
