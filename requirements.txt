@@ -1,6 +1,6 @@
 fastapi==0.92.0
 Pillow==9.4.0
-urllib
+urllib3
 tensorflow==2.10.0
 numpy
 functools
