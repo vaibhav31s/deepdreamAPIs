@@ -1,8 +1,6 @@
-fastapi
-io
-pillow
+fastapi==0.92.0
+Pillow==9.4.0
 urllib
-tensorflow
+tensorflow==2.10.0
 numpy
 functools
-io
