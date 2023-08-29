@@ -1,25 +1,15 @@
-from turtle import st
+
 from fastapi import FastAPI, UploadFile, File
-from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import base64
-from werkzeug.utils import secure_filename
 from io import BytesIO
 import PIL.Image
-import numpy as np
 import os
-import json
-import requests
-import subprocess
 import urllib
 import tensorflow as tf
 import numpy as np
 import PIL.Image
-import IPython.display as display
-import zipfile
 from fastapi.responses import FileResponse
 import functools
-from typing import List
 
 tf.compat.v1.disable_eager_execution()
 
@@ -77,6 +67,7 @@ async def create_upload_file(file: UploadFile = File(...)):
 
     return {"filename": file.filename}
 
+
 @app.get("/images/")
 async def read_random_file():
     # random_index = randint(0, len(db) - 1)
@@ -86,7 +77,7 @@ async def read_random_file():
     return response
 
 
-@app.get("/image/")
+@app.get("/image")
 async def inputImage():
     response = FileResponse("input.png")
     return response
@@ -122,10 +113,6 @@ def write_image(dg, arr):
     dg.image(arr, use_column_width=True)
     return dg
 def tffunc(*argtypes):
-    '''Helper that transforms TF-graph generating function into a regular one.
-
-    See "resize" function below.
-    '''
     placeholders = list(map(tf.compat.v1.placeholder, argtypes))
 
     def wrap(f):
@@ -144,6 +131,7 @@ def resize(img, size):
 resize = tffunc(np.float32, np.int32)(resize)
 
 def calc_grad_tiled(img, t_grad, tile_size=512):
+
     '''Compute the value of tensor t_grad over the image in a tiled way.
 
     Random shifts are applied to the image to blur tile boundaries over
@@ -236,8 +224,8 @@ class outputParams(BaseModel):
 
 @app.post("/out")
 async def output(params : outputParams):
-    MAX_IMG_WIDTH = 800
-    MAX_IMG_HEIGHT = 600
+    MAX_IMG_WIDTH = 1200
+    MAX_IMG_HEIGHT = 800
     DEFAULT_IMAGE_URL = './/'
 
     file_obj = 'input.png'
@@ -260,7 +248,7 @@ async def output(params : outputParams):
         get_tensor(layer)[:, :, :, channel], img_in, octave_n=octaves,
         iter_n=iterations)
 
-    response = FileResponse("output.png")
+    response = FileResponse("input.png")
     return response
 
 @app.get("/out")
@@ -283,47 +271,3 @@ async def output():
 
 
 
-
-# @app.get("/resume/{id}")
-# async def resume(id: str):
-#     return {"message": f"This is  {id}'s resume"}
-#
-#
-# @app.post('/file/upload')
-# def upload_file(file: UploadFile):
-#     if (file.content_type != 'application/json'):
-#         raise HTTPException(400, detail="This is invalid type")
-#     else:
-#         data = json.loads(file.file.read())
-#         return {"content": data, "filename": file.filename}
-
-# @app.post("/upload")
-# def upload(file: UploadFile = File(...)):
-#     try:
-#         contents = file.file.read()
-#         with open(file.filename, 'wb') as f:
-#             f.write(contents)
-#
-#     except Exception:
-#         return {"message": "There was an error uploading the file"}
-#     finally:
-#         file.file.close()
-#
-#     return {"message": f"This is file which is came {file.filename}"}
-
-
-
-#
-# @app.post("/files")
-# def uploadss(files: List[UploadFile] = File(...)):
-#     for file in files:
-#         try:
-#             with open(file.filename, 'wb') as f:
-#                 while contents := file.file.read(1024 * 1024):
-#                     f.write(contents)
-#         except Exception:
-#             return {"message": "There was an error uploading the file(s)"}
-#         finally:
-#             file.file.close()
-#
-#     return {"message": f"Successfuly uploaded {[file.filename for file in files]}"}
